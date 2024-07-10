@@ -2,38 +2,8 @@ import streamlit as st
 from PIL import Image
 import os
 import io
-import cv2
-import numpy as np
-from facenet_pytorch import MTCNN
 import time
-
-mtcnn = MTCNN(keep_all=True, device="cpu")
-
-
-def detect_faces(image):
-    img_array = np.array(image)
-    boxes, _ = mtcnn.detect(img_array)
-    return boxes
-
-
-def highlight_faces(image, faces, margin=0.2):
-    img_array = np.array(image)
-    img_height, img_width, _ = img_array.shape
-
-    if faces is not None:
-        for face in faces:
-            x1, y1, x2, y2 = face
-            top_margin = int((y2 - y1) * margin)
-            expanded_top = max(int(y1) - top_margin, 0)
-
-            cv2.rectangle(
-                img_array,
-                (int(x1), expanded_top),
-                (int(x2), int(y2)),
-                (255, 0, 0),
-                2,
-            )
-    return Image.fromarray(img_array)
+import zipfile
 
 
 def process_image(image, output_sizes):
@@ -41,10 +11,12 @@ def process_image(image, output_sizes):
     for size, (width, height, max_size_kb) in output_sizes.items():
         img_copy = image.copy()
 
+        # Resize image to 1200 pixels wide
         img_copy = img_copy.resize(
             (1200, int(1200 * img_copy.height / img_copy.width)), Image.LANCZOS
         )
 
+        # Crop image to correct aspect ratio
         img_width, img_height = img_copy.size
         aspect_ratio = width / height
 
@@ -57,8 +29,10 @@ def process_image(image, output_sizes):
             offset = (img_height - new_height) // 2
             img_copy = img_copy.crop((0, offset, img_width, offset + new_height))
 
+        # Resize image to target size
         img_copy = img_copy.resize((width, height), Image.LANCZOS)
 
+        # Compress image to meet file size requirements
         webp_image = io.BytesIO()
         quality = 100
         img_copy.save(webp_image, format="WEBP", quality=quality)
@@ -78,9 +52,9 @@ def main():
     )
 
     output_sizes = {
-        "Miniaturka": (600, 400, 50),
-        "Banner": (1200, 500, 100),
-        "Zdjęcie": (1200, 600, 100),
+        "Miniaturka": (600, 400, 50),  # (width, height, max_size_kb)
+        "Banner": (1200, 500, 100),  # (width, height, max_size_kb)
+        "Zdjęcie": (1200, 600, 100),  # (width, height, max_size_kb)
     }
 
     menu = ["Masowe przetwarzanie", "Pojedyncze zdjęcie", "Zdjęcia z Midjourney"]
@@ -95,45 +69,59 @@ def main():
             "Wybierz pliki", type=["jpg", "png"], accept_multiple_files=True
         )
 
-        if uploaded_files:
-            if st.button("Przetwórz zdjęcia") or st.session_state.get(
-                "bulk_processing", False
-            ):
-                st.session_state.bulk_processing = True
-                progress_bar = st.progress(0)
-                start_time = time.time()
-                processed_count = 0
+        if uploaded_files and st.button("Przetwórz zdjęcia"):
+            st.session_state.bulk_processing = True
+            progress_bar = st.progress(0)
+            start_time = time.time()
+            processed_count = 0
 
-                for i, uploaded_file in enumerate(uploaded_files):
-                    try:
-                        image = Image.open(uploaded_file)
-                        faces = detect_faces(image)
-                        highlighted_image = highlight_faces(image, faces)
-                        results = process_image(highlighted_image, output_sizes)
+            processed_images = []
 
-                        st.write(f"Przetworzono: {uploaded_file.name}")
-                        for size, img_bytes in results.items():
-                            st.download_button(
-                                label=f"Pobierz {size}",
-                                data=img_bytes,
-                                file_name=f"{os.path.splitext(uploaded_file.name)[0]}_{size}.webp",
-                                mime="image/webp",
-                            )
-                        st.write("---")
-                        processed_count += 1
-                    except Exception as e:
-                        st.error(
-                            f"Błąd podczas przetwarzania {uploaded_file.name}: {str(e)}"
+            for i, uploaded_file in enumerate(uploaded_files):
+                try:
+                    image = Image.open(uploaded_file)
+                    results = process_image(image, output_sizes)
+
+                    st.write(f"Przetworzono: {uploaded_file.name}")
+                    for size, img_bytes in results.items():
+                        st.download_button(
+                            label=f"Pobierz {size}",
+                            data=img_bytes,
+                            file_name=f"{os.path.splitext(uploaded_file.name)[0]}_{size}.webp",
+                            mime="image/webp",
                         )
+                        if size == "Zdjęcie":
+                            processed_images.append(
+                                (
+                                    f"{os.path.splitext(uploaded_file.name)[0]}_{size}.webp",
+                                    img_bytes,
+                                )
+                            )
+                    st.write("---")
+                    processed_count += 1
+                except Exception as e:
+                    st.error(
+                        f"Błąd podczas przetwarzania {uploaded_file.name}: {str(e)}"
+                    )
 
-                    progress_bar.progress((i + 1) / len(uploaded_files))
+                progress_bar.progress((i + 1) / len(uploaded_files))
 
-                end_time = time.time()
-                processing_time = end_time - start_time
-                st.success(
-                    f"Przetworzono {processed_count} z {len(uploaded_files)} plików w {processing_time:.2f} sekund."
-                )
-                st.session_state.bulk_processing = False
+            end_time = time.time()
+            processing_time = end_time - start_time
+            st.success(
+                f"Przetworzono {processed_count} z {len(uploaded_files)} plików w {processing_time:.2f} sekund."
+            )
+            st.session_state.bulk_processing = False
+
+            if processed_count > 0:
+                st.markdown("### Pobierz wszystkie zdjęcia (1200x600)")
+                for filename, img_bytes in processed_images:
+                    st.download_button(
+                        label=f"Pobierz {filename}",
+                        data=img_bytes,
+                        file_name=filename,
+                        mime="image/webp",
+                    )
 
     elif choice == "Pojedyncze zdjęcie":
         st.header("Przetwarzanie pojedynczego zdjęcia")
@@ -142,10 +130,9 @@ def main():
 
         if uploaded_file:
             image = Image.open(uploaded_file)
-            faces = detect_faces(image)
             st.image(
-                highlight_faces(image, faces),
-                caption="Oryginalne zdjęcie z zaznaczonymi twarzami",
+                image,
+                caption="Oryginalne zdjęcie",
                 use_column_width=True,
             )
 
@@ -175,45 +162,59 @@ def main():
             "Wybierz pliki PNG z Midjourney", type=["png"], accept_multiple_files=True
         )
 
-        if uploaded_files:
-            if st.button("Przetwórz zdjęcia") or st.session_state.get(
-                "midjourney_processing", False
-            ):
-                st.session_state.midjourney_processing = True
-                progress_bar = st.progress(0)
-                start_time = time.time()
-                processed_count = 0
+        if uploaded_files and st.button("Przetwórz zdjęcia"):
+            st.session_state.midjourney_processing = True
+            progress_bar = st.progress(0)
+            start_time = time.time()
+            processed_count = 0
 
-                for i, uploaded_file in enumerate(uploaded_files):
-                    try:
-                        image = Image.open(uploaded_file)
-                        faces = detect_faces(image)
-                        highlighted_image = highlight_faces(image, faces)
-                        results = process_image(highlighted_image, output_sizes)
+            processed_images = []
 
-                        st.write(f"Przetworzono: {uploaded_file.name}")
-                        for size, img_bytes in results.items():
-                            st.download_button(
-                                label=f"Pobierz {size}",
-                                data=img_bytes,
-                                file_name=f"{os.path.splitext(uploaded_file.name)[0]}_{size}.webp",
-                                mime="image/webp",
-                            )
-                        st.write("---")
-                        processed_count += 1
-                    except Exception as e:
-                        st.error(
-                            f"Błąd podczas przetwarzania {uploaded_file.name}: {str(e)}"
+            for i, uploaded_file in enumerate(uploaded_files):
+                try:
+                    image = Image.open(uploaded_file)
+                    results = process_image(image, output_sizes)
+
+                    st.write(f"Przetworzono: {uploaded_file.name}")
+                    for size, img_bytes in results.items():
+                        st.download_button(
+                            label=f"Pobierz {size}",
+                            data=img_bytes,
+                            file_name=f"{os.path.splitext(uploaded_file.name)[0]}_{size}.webp",
+                            mime="image/webp",
                         )
+                        if size == "Zdjęcie":
+                            processed_images.append(
+                                (
+                                    f"{os.path.splitext(uploaded_file.name)[0]}_{size}.webp",
+                                    img_bytes,
+                                )
+                            )
+                    st.write("---")
+                    processed_count += 1
+                except Exception as e:
+                    st.error(
+                        f"Błąd podczas przetwarzania {uploaded_file.name}: {str(e)}"
+                    )
 
-                    progress_bar.progress((i + 1) / len(uploaded_files))
+                progress_bar.progress((i + 1) / len(uploaded_files))
 
-                end_time = time.time()
-                processing_time = end_time - start_time
-                st.success(
-                    f"Przetworzono {processed_count} z {len(uploaded_files)} plików w {processing_time:.2f} sekund."
-                )
-                st.session_state.midjourney_processing = False
+            end_time = time.time()
+            processing_time = end_time - start_time
+            st.success(
+                f"Przetworzono {processed_count} z {len(uploaded_files)} plików w {processing_time:.2f} sekund."
+            )
+            st.session_state.midjourney_processing = False
+
+            if processed_count > 0:
+                st.markdown("### Pobierz wszystkie zdjęcia (1200x600)")
+                for filename, img_bytes in processed_images:
+                    st.download_button(
+                        label=f"Pobierz {filename}",
+                        data=img_bytes,
+                        file_name=filename,
+                        mime="image/webp",
+                    )
 
 
 if __name__ == "__main__":
