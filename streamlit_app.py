@@ -4,32 +4,32 @@ import os
 import io
 import cv2
 import numpy as np
-from retinaface import RetinaFace
+from facenet_pytorch import MTCNN
 import time
 import zipfile
+
+mtcnn = MTCNN(keep_all=True, device="cpu")
 
 
 def detect_faces(image):
     img_array = np.array(image)
-    faces = RetinaFace.detect_faces(img_array)
-    return faces
+    boxes, _ = mtcnn.detect(img_array)
+    return boxes
 
 
 def highlight_faces(image, faces, margin=0.2):
     img_array = np.array(image)
     img_height, img_width, _ = img_array.shape
 
-    for face in faces.values():
-        facial_area = face["facial_area"]
-
-        # Expand the facial area upwards by the margin
-        top_margin = int(facial_area[1] * margin)
-        expanded_top = max(facial_area[1] - top_margin, 0)
+    for face in faces:
+        x1, y1, x2, y2 = face
+        top_margin = int((y2 - y1) * margin)
+        expanded_top = max(int(y1) - top_margin, 0)
 
         cv2.rectangle(
             img_array,
-            (facial_area[0], expanded_top),
-            (facial_area[2], facial_area[3]),
+            (int(x1), expanded_top),
+            (int(x2), int(y2)),
             (255, 0, 0),
             2,
         )
