@@ -52,9 +52,9 @@ def main():
     }
 
     menu = [
-        "Masowe przetwarzanie",
-        "Pojedyncze zdjęcie",
-        "Zdjęcia z Midjourney",
+        "Masowe przetwarzanie 🥑",
+        "Pojedyncze zdjęcie 🥑",
+        "Zdjęcia z Midjourney 🥑",
         "Niestandardowy rozmiar",
     ]
     choice = st.sidebar.selectbox("Wybierz tryb", menu)
