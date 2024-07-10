@@ -21,18 +21,19 @@ def highlight_faces(image, faces, margin=0.2):
     img_array = np.array(image)
     img_height, img_width, _ = img_array.shape
 
-    for face in faces:
-        x1, y1, x2, y2 = face
-        top_margin = int((y2 - y1) * margin)
-        expanded_top = max(int(y1) - top_margin, 0)
+    if faces is not None:
+        for face in faces:
+            x1, y1, x2, y2 = face
+            top_margin = int((y2 - y1) * margin)
+            expanded_top = max(int(y1) - top_margin, 0)
 
-        cv2.rectangle(
-            img_array,
-            (int(x1), expanded_top),
-            (int(x2), int(y2)),
-            (255, 0, 0),
-            2,
-        )
+            cv2.rectangle(
+                img_array,
+                (int(x1), expanded_top),
+                (int(x2), int(y2)),
+                (255, 0, 0),
+                2,
+            )
     return Image.fromarray(img_array)
 
 
