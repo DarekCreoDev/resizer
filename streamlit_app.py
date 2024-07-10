@@ -6,7 +6,7 @@ import time
 import zipfile
 
 
-def process_image(image, output_sizes):
+def process_image(image, output_sizes, file_format="WEBP"):
     results = {}
     for size, (width, height, max_size_kb) in output_sizes.items():
         img_copy = image.copy()
@@ -27,22 +27,22 @@ def process_image(image, output_sizes):
 
         img_copy = img_copy.resize((width, height), Image.LANCZOS)
 
-        webp_image = io.BytesIO()
+        output_image = io.BytesIO()
         quality = 100
-        img_copy.save(webp_image, format="WEBP", quality=quality)
-        while webp_image.tell() > max_size_kb * 1024 and quality > 0:
+        img_copy.save(output_image, format=file_format, quality=quality)
+        while output_image.tell() > max_size_kb * 1024 and quality > 0:
             quality -= 5
-            webp_image = io.BytesIO()
-            img_copy.save(webp_image, format="WEBP", quality=quality)
+            output_image = io.BytesIO()
+            img_copy.save(output_image, format=file_format, quality=quality)
 
-        results[size] = webp_image.getvalue()
+        results[size] = output_image.getvalue()
     return results
 
 
 def main():
-    st.title("Konwerter obrazów do WebP")
+    st.title("Konwerter obrazów")
     st.write(
-        "Witamy w narzędziu do konwersji obrazów na format WebP. Możesz przetwarzać zdjęcia masowo lub pojedynczo. Wybierz odpowiednią opcję z menu po lewej stronie."
+        "Witamy w narzędziu do konwersji obrazów. Możesz przetwarzać zdjęcia masowo lub pojedynczo. Wybierz odpowiednią opcję z menu po lewej stronie."
     )
 
     output_sizes = {
@@ -58,6 +58,24 @@ def main():
         "Niestandardowy rozmiar",
     ]
     choice = st.sidebar.selectbox("Wybierz tryb", menu)
+
+    # Przycisk "Pobierz wszystkie zdjęcia" na górze każdej zakładki
+    st.sidebar.markdown("### Pobierz wszystkie zdjęcia")
+    if st.sidebar.button("Pobierz wszystkie zdjęcia", key="download_all_top"):
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            for file_name, results in st.session_state.get("processed_images", []):
+                for size, img_bytes in results.items():
+                    zip_file.writestr(
+                        f"{os.path.splitext(file_name)[0]}_{size}.webp",
+                        img_bytes,
+                    )
+        st.sidebar.download_button(
+            label="Pobierz wszystkie zdjęcia",
+            data=zip_buffer.getvalue(),
+            file_name="wszystkie_zdjecia.zip",
+            mime="application/zip",
+        )
 
     if choice == "Masowe przetwarzanie":
         st.header("Masowe przetwarzanie zdjęć")
@@ -86,11 +104,13 @@ def main():
                         st.write(f"Przetworzono: {uploaded_file.name}")
 
                         cols = st.columns(3)
+                        preview_image = next(iter(results.values()))
+                        with cols[0]:
+                            st.image(
+                                preview_image, caption="Podgląd", use_column_width=True
+                            )
                         for idx, (size, img_bytes) in enumerate(results.items()):
-                            with cols[idx]:
-                                st.image(
-                                    img_bytes, caption=f"{size}", use_column_width=True
-                                )
+                            with cols[(idx + 1) % 3]:
                                 st.download_button(
                                     label=f"Pobierz {size}",
                                     data=img_bytes,
@@ -115,26 +135,6 @@ def main():
                     f"Przetworzono {processed_count} z {len(uploaded_files)} plików w {processing_time:.2f} sekund."
                 )
 
-            if st.session_state.get("processed_images", []):
-                if st.button("Pobierz wszystkie zdjęcia"):
-                    zip_buffer = io.BytesIO()
-                    with zipfile.ZipFile(
-                        zip_buffer, "w", zipfile.ZIP_DEFLATED
-                    ) as zip_file:
-                        for file_name, results in st.session_state.processed_images:
-                            img_bytes = results["Zdjęcie"]
-                            zip_file.writestr(
-                                f"{os.path.splitext(file_name)[0]}_1200x600.webp",
-                                img_bytes,
-                            )
-
-                    st.download_button(
-                        label="Pobierz wszystkie zdjęcia (1200x600)",
-                        data=zip_buffer.getvalue(),
-                        file_name="wszystkie_zdjecia.zip",
-                        mime="application/zip",
-                    )
-
     elif choice == "Pojedyncze zdjęcie":
         st.header("Przetwarzanie pojedynczego zdjęcia")
         st.write("Wybierz jedno zdjęcie, które chcesz przetworzyć.")
@@ -147,14 +147,11 @@ def main():
             if st.button("Przetwórz"):
                 results = process_image(image, output_sizes)
                 cols = st.columns(3)
+                preview_image = next(iter(results.values()))
+                with cols[0]:
+                    st.image(preview_image, caption="Podgląd", use_column_width=True)
                 for i, (size, img_bytes) in enumerate(results.items()):
-                    with cols[i % 3]:
-                        st.write(f"{size}:")
-                        st.image(
-                            img_bytes,
-                            caption=f"Przetworzone {size}",
-                            use_column_width=True,
-                        )
+                    with cols[(i + 1) % 3]:
                         st.download_button(
                             label=f"Pobierz {size}",
                             data=img_bytes,
@@ -165,6 +162,7 @@ def main():
     elif choice == "Zdjęcia z Midjourney":
         st.header("Przetwarzanie zdjęć z Midjourney")
         st.write("Wybierz pliki PNG z Midjourney, które chcesz przetworzyć.")
+
         uploaded_files = st.file_uploader(
             "Wybierz pliki PNG z Midjourney", type=["png"], accept_multiple_files=True
         )
@@ -172,7 +170,7 @@ def main():
         if uploaded_files:
             if st.button("Przetwórz zdjęcia"):
                 st.session_state.midjourney_processing = True
-                st.session_state.processed_midjourney_images = []
+                st.session_state.processed_images = []
 
             if st.session_state.get("midjourney_processing", False):
                 progress_bar = st.progress(0)
@@ -186,11 +184,13 @@ def main():
                         st.write(f"Przetworzono: {uploaded_file.name}")
 
                         cols = st.columns(3)
+                        preview_image = next(iter(results.values()))
+                        with cols[0]:
+                            st.image(
+                                preview_image, caption="Podgląd", use_column_width=True
+                            )
                         for idx, (size, img_bytes) in enumerate(results.items()):
-                            with cols[idx]:
-                                st.image(
-                                    img_bytes, caption=f"{size}", use_column_width=True
-                                )
+                            with cols[(idx + 1) % 3]:
                                 st.download_button(
                                     label=f"Pobierz {size}",
                                     data=img_bytes,
@@ -198,7 +198,7 @@ def main():
                                     mime="image/webp",
                                 )
 
-                        st.session_state.processed_midjourney_images.append(
+                        st.session_state.processed_images.append(
                             (uploaded_file.name, results)
                         )
                         st.write("---")
@@ -215,33 +215,10 @@ def main():
                     f"Przetworzono {processed_count} z {len(uploaded_files)} plików w {processing_time:.2f} sekund."
                 )
 
-            if st.session_state.get("processed_midjourney_images", []):
-                if st.button("Pobierz wszystkie zdjęcia"):
-                    zip_buffer = io.BytesIO()
-                    with zipfile.ZipFile(
-                        zip_buffer, "w", zipfile.ZIP_DEFLATED
-                    ) as zip_file:
-                        for (
-                            file_name,
-                            results,
-                        ) in st.session_state.processed_midjourney_images:
-                            img_bytes = results["Zdjęcie"]
-                            zip_file.writestr(
-                                f"{os.path.splitext(file_name)[0]}_1200x600.webp",
-                                img_bytes,
-                            )
-
-                    st.download_button(
-                        label="Pobierz wszystkie zdjęcia (1200x600)",
-                        data=zip_buffer.getvalue(),
-                        file_name="wszystkie_zdjecia_midjourney.zip",
-                        mime="application/zip",
-                    )
-
     elif choice == "Niestandardowy rozmiar":
         st.header("Przetwarzanie zdjęć w niestandardowym rozmiarze")
         st.write(
-            "Wybierz pliki i określ niestandardowy rozmiar dla przetwarzanych zdjęć."
+            "Wybierz pliki i określ niestandardowy rozmiar oraz format dla przetwarzanych zdjęć."
         )
 
         custom_width = st.number_input(
@@ -252,6 +229,10 @@ def main():
         )
         custom_max_size = st.number_input(
             "Maksymalny rozmiar pliku (KB)", min_value=50, max_value=1000, value=100
+        )
+
+        file_format = st.selectbox(
+            "Format pliku", options=["WEBP", "JPEG", "PNG"], index=0
         )
 
         custom_output_sizes = {
@@ -265,7 +246,7 @@ def main():
         if uploaded_files:
             if st.button("Przetwórz zdjęcia"):
                 st.session_state.custom_processing = True
-                st.session_state.processed_custom_images = []
+                st.session_state.processed_images = []
 
             if st.session_state.get("custom_processing", False):
                 progress_bar = st.progress(0)
@@ -275,30 +256,24 @@ def main():
                 for i, uploaded_file in enumerate(uploaded_files):
                     try:
                         image = Image.open(uploaded_file)
-                        results = process_image(image, custom_output_sizes)
+                        results = process_image(image, custom_output_sizes, file_format)
                         st.write(f"Przetworzono: {uploaded_file.name}")
 
                         cols = st.columns(2)
+                        preview_image = next(iter(results.values()))
                         with cols[0]:
                             st.image(
-                                image,
-                                caption="Oryginalne zdjęcie",
-                                use_column_width=True,
+                                preview_image, caption="Podgląd", use_column_width=True
                             )
                         with cols[1]:
-                            st.image(
-                                results["Niestandardowy"],
-                                caption=f"Przetworzone {custom_width}x{custom_height}",
-                                use_column_width=True,
-                            )
                             st.download_button(
-                                label=f"Pobierz {custom_width}x{custom_height}",
+                                label=f"Pobierz {custom_width}x{custom_height}.{file_format.lower()}",
                                 data=results["Niestandardowy"],
-                                file_name=f"{os.path.splitext(uploaded_file.name)[0]}_{custom_width}x{custom_height}.webp",
-                                mime="image/webp",
+                                file_name=f"{os.path.splitext(uploaded_file.name)[0]}_{custom_width}x{custom_height}.{file_format.lower()}",
+                                mime=f"image/{file_format.lower()}",
                             )
 
-                        st.session_state.processed_custom_images.append(
+                        st.session_state.processed_images.append(
                             (uploaded_file.name, results)
                         )
                         st.write("---")
@@ -314,29 +289,6 @@ def main():
                 st.success(
                     f"Przetworzono {processed_count} z {len(uploaded_files)} plików w {processing_time:.2f} sekund."
                 )
-
-            if st.session_state.get("processed_custom_images", []):
-                if st.button("Pobierz wszystkie zdjęcia"):
-                    zip_buffer = io.BytesIO()
-                    with zipfile.ZipFile(
-                        zip_buffer, "w", zipfile.ZIP_DEFLATED
-                    ) as zip_file:
-                        for (
-                            file_name,
-                            results,
-                        ) in st.session_state.processed_custom_images:
-                            img_bytes = results["Niestandardowy"]
-                            zip_file.writestr(
-                                f"{os.path.splitext(file_name)[0]}_{custom_width}x{custom_height}.webp",
-                                img_bytes,
-                            )
-
-                    st.download_button(
-                        label=f"Pobierz wszystkie zdjęcia ({custom_width}x{custom_height})",
-                        data=zip_buffer.getvalue(),
-                        file_name=f"wszystkie_zdjecia_{custom_width}x{custom_height}.zip",
-                        mime="application/zip",
-                    )
 
 
 if __name__ == "__main__":
