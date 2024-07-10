@@ -69,10 +69,13 @@ def main():
 
         if uploaded_files:
             if st.button("Przetwórz zdjęcia"):
+                st.session_state.bulk_processing = True
+                st.session_state.processed_images = []
+
+            if st.session_state.get("bulk_processing", False):
                 progress_bar = st.progress(0)
                 start_time = time.time()
                 processed_count = 0
-                processed_images = []
 
                 for i, uploaded_file in enumerate(uploaded_files):
                     try:
@@ -86,7 +89,9 @@ def main():
                                 file_name=f"{os.path.splitext(uploaded_file.name)[0]}_{size}.webp",
                                 mime="image/webp",
                             )
-                        processed_images.append((uploaded_file.name, results))
+                        st.session_state.processed_images.append(
+                            (uploaded_file.name, results)
+                        )
                         st.write("---")
                         processed_count += 1
                     except Exception as e:
@@ -101,15 +106,15 @@ def main():
                     f"Przetworzono {processed_count} z {len(uploaded_files)} plików w {processing_time:.2f} sekund."
                 )
 
-                if processed_count > 0:
-                    if st.button("Pobierz wszystkie zdjęcia"):
-                        for file_name, results in processed_images:
-                            img_bytes = results["Zdjęcie"]  # Pobieramy rozmiar 1200x600
-                            with open(
-                                f"{os.path.splitext(file_name)[0]}_1200x600.webp", "wb"
-                            ) as f:
-                                f.write(img_bytes)
-                        st.success("Wszystkie zdjęcia zostały pobrane do folderu.")
+            if st.session_state.get("processed_images", []):
+                if st.button("Pobierz wszystkie zdjęcia"):
+                    for file_name, results in st.session_state.processed_images:
+                        img_bytes = results["Zdjęcie"]  # Pobieramy rozmiar 1200x600
+                        with open(
+                            f"{os.path.splitext(file_name)[0]}_1200x600.webp", "wb"
+                        ) as f:
+                            f.write(img_bytes)
+                    st.success("Wszystkie zdjęcia zostały pobrane do folderu.")
 
     elif choice == "Pojedyncze zdjęcie":
         st.header("Przetwarzanie pojedynczego zdjęcia")
@@ -147,10 +152,13 @@ def main():
 
         if uploaded_files:
             if st.button("Przetwórz zdjęcia"):
+                st.session_state.midjourney_processing = True
+                st.session_state.processed_midjourney_images = []
+
+            if st.session_state.get("midjourney_processing", False):
                 progress_bar = st.progress(0)
                 start_time = time.time()
                 processed_count = 0
-                processed_images = []
 
                 for i, uploaded_file in enumerate(uploaded_files):
                     try:
@@ -164,7 +172,9 @@ def main():
                                 file_name=f"{os.path.splitext(uploaded_file.name)[0]}_{size}.webp",
                                 mime="image/webp",
                             )
-                        processed_images.append((uploaded_file.name, results))
+                        st.session_state.processed_midjourney_images.append(
+                            (uploaded_file.name, results)
+                        )
                         st.write("---")
                         processed_count += 1
                     except Exception as e:
@@ -179,15 +189,18 @@ def main():
                     f"Przetworzono {processed_count} z {len(uploaded_files)} plików w {processing_time:.2f} sekund."
                 )
 
-                if processed_count > 0:
-                    if st.button("Pobierz wszystkie zdjęcia"):
-                        for file_name, results in processed_images:
-                            img_bytes = results["Zdjęcie"]  # Pobieramy rozmiar 1200x600
-                            with open(
-                                f"{os.path.splitext(file_name)[0]}_1200x600.webp", "wb"
-                            ) as f:
-                                f.write(img_bytes)
-                        st.success("Wszystkie zdjęcia zostały pobrane do folderu.")
+            if st.session_state.get("processed_midjourney_images", []):
+                if st.button("Pobierz wszystkie zdjęcia"):
+                    for (
+                        file_name,
+                        results,
+                    ) in st.session_state.processed_midjourney_images:
+                        img_bytes = results["Zdjęcie"]  # Pobieramy rozmiar 1200x600
+                        with open(
+                            f"{os.path.splitext(file_name)[0]}_1200x600.webp", "wb"
+                        ) as f:
+                            f.write(img_bytes)
+                    st.success("Wszystkie zdjęcia zostały pobrane do folderu.")
 
 
 if __name__ == "__main__":
