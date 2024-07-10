@@ -60,8 +60,12 @@ def main():
     choice = st.sidebar.selectbox("Wybierz tryb", menu)
 
     # Przycisk "Pobierz wszystkie zdjęcia" na górze każdej zakładki
-    st.sidebar.markdown("### Pobierz wszystkie zdjęcia")
-    if st.sidebar.button("Pobierz wszystkie zdjęcia", key="download_all_top"):
+    st.sidebar.markdown(
+        "### Po przetworzeniu zdjęcia możesz spakować je do ZIP i pobrać."
+    )
+    if st.sidebar.button(
+        "Kliknij i przygotuj paczkę, ze zdjęciami.", key="download_all_top"
+    ):
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
             for file_name, results in st.session_state.get("processed_images", []):
