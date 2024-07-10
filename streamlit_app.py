@@ -3,7 +3,6 @@ from PIL import Image
 import os
 import io
 import time
-import zipfile
 
 
 def process_image(image, output_sizes):
@@ -84,12 +83,6 @@ def main():
 
                     st.write(f"Przetworzono: {uploaded_file.name}")
                     for size, img_bytes in results.items():
-                        st.download_button(
-                            label=f"Pobierz {size}",
-                            data=img_bytes,
-                            file_name=f"{os.path.splitext(uploaded_file.name)[0]}_{size}.webp",
-                            mime="image/webp",
-                        )
                         if size == "Zdjęcie":
                             processed_images.append(
                                 (
@@ -177,12 +170,6 @@ def main():
 
                     st.write(f"Przetworzono: {uploaded_file.name}")
                     for size, img_bytes in results.items():
-                        st.download_button(
-                            label=f"Pobierz {size}",
-                            data=img_bytes,
-                            file_name=f"{os.path.splitext(uploaded_file.name)[0]}_{size}.webp",
-                            mime="image/webp",
-                        )
                         if size == "Zdjęcie":
                             processed_images.append(
                                 (
