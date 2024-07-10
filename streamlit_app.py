@@ -6,7 +6,6 @@ import cv2
 import numpy as np
 from facenet_pytorch import MTCNN
 import time
-import zipfile
 
 mtcnn = MTCNN(keep_all=True, device="cpu")
 
@@ -42,12 +41,10 @@ def process_image(image, output_sizes):
     for size, (width, height, max_size_kb) in output_sizes.items():
         img_copy = image.copy()
 
-        # Skalowanie obrazu do szerokości 1200 pikseli
         img_copy = img_copy.resize(
             (1200, int(1200 * img_copy.height / img_copy.width)), Image.LANCZOS
         )
 
-        # Przycinanie obrazu do odpowiednich proporcji
         img_width, img_height = img_copy.size
         aspect_ratio = width / height
 
@@ -60,10 +57,8 @@ def process_image(image, output_sizes):
             offset = (img_height - new_height) // 2
             img_copy = img_copy.crop((0, offset, img_width, offset + new_height))
 
-        # Skalowanie obrazu do docelowego rozmiaru
         img_copy = img_copy.resize((width, height), Image.LANCZOS)
 
-        # Kompresja obrazu do spełnienia wymagań dotyczących rozmiaru pliku
         webp_image = io.BytesIO()
         quality = 100
         img_copy.save(webp_image, format="WEBP", quality=quality)
@@ -83,9 +78,9 @@ def main():
     )
 
     output_sizes = {
-        "Miniaturka": (600, 400, 50),  # (width, height, max_size_kb)
-        "Banner": (1200, 500, 100),  # (width, height, max_size_kb)
-        "Zdjęcie": (1200, 600, 100),  # (width, height, max_size_kb)
+        "Miniaturka": (600, 400, 50),
+        "Banner": (1200, 500, 100),
+        "Zdjęcie": (1200, 600, 100),
     }
 
     menu = ["Masowe przetwarzanie", "Pojedyncze zdjęcie", "Zdjęcia z Midjourney"]
@@ -108,53 +103,37 @@ def main():
                 progress_bar = st.progress(0)
                 start_time = time.time()
                 processed_count = 0
-                all_files_zip = io.BytesIO()
 
-                with zipfile.ZipFile(all_files_zip, "w", zipfile.ZIP_DEFLATED) as zf:
-                    for i, uploaded_file in enumerate(uploaded_files):
-                        try:
-                            image = Image.open(uploaded_file)
-                            faces = detect_faces(image)
-                            highlighted_image = highlight_faces(image, faces)
-                            results = process_image(highlighted_image, output_sizes)
+                for i, uploaded_file in enumerate(uploaded_files):
+                    try:
+                        image = Image.open(uploaded_file)
+                        faces = detect_faces(image)
+                        highlighted_image = highlight_faces(image, faces)
+                        results = process_image(highlighted_image, output_sizes)
 
-                            st.write(f"Przetworzono: {uploaded_file.name}")
-                            for size, img_bytes in results.items():
-                                st.download_button(
-                                    label=f"Pobierz {size}",
-                                    data=img_bytes,
-                                    file_name=f"{os.path.splitext(uploaded_file.name)[0]}_{size}.webp",
-                                    mime="image/webp",
-                                )
-                                if size == "Banner":
-                                    zf.writestr(
-                                        f"{os.path.splitext(uploaded_file.name)[0]}_{size}.webp",
-                                        img_bytes,
-                                    )
-                            st.write("---")
-                            processed_count += 1
-                        except Exception as e:
-                            st.error(
-                                f"Błąd podczas przetwarzania {uploaded_file.name}: {str(e)}"
+                        st.write(f"Przetworzono: {uploaded_file.name}")
+                        for size, img_bytes in results.items():
+                            st.download_button(
+                                label=f"Pobierz {size}",
+                                data=img_bytes,
+                                file_name=f"{os.path.splitext(uploaded_file.name)[0]}_{size}.webp",
+                                mime="image/webp",
                             )
-
-                        progress_bar.progress((i + 1) / len(uploaded_files))
-
-                    end_time = time.time()
-                    processing_time = end_time - start_time
-                    st.success(
-                        f"Przetworzono {processed_count} z {len(uploaded_files)} plików w {processing_time:.2f} sekund."
-                    )
-                    st.session_state.bulk_processing = False
-
-                    if processed_count > 0:
-                        all_files_zip.seek(0)
-                        st.download_button(
-                            label="Pobierz wszystkie zdjęcia (1200x500)",
-                            data=all_files_zip.getvalue(),
-                            file_name="processed_images.zip",
-                            mime="application/zip",
+                        st.write("---")
+                        processed_count += 1
+                    except Exception as e:
+                        st.error(
+                            f"Błąd podczas przetwarzania {uploaded_file.name}: {str(e)}"
                         )
+
+                    progress_bar.progress((i + 1) / len(uploaded_files))
+
+                end_time = time.time()
+                processing_time = end_time - start_time
+                st.success(
+                    f"Przetworzono {processed_count} z {len(uploaded_files)} plików w {processing_time:.2f} sekund."
+                )
+                st.session_state.bulk_processing = False
 
     elif choice == "Pojedyncze zdjęcie":
         st.header("Przetwarzanie pojedynczego zdjęcia")
@@ -204,53 +183,37 @@ def main():
                 progress_bar = st.progress(0)
                 start_time = time.time()
                 processed_count = 0
-                all_files_zip = io.BytesIO()
 
-                with zipfile.ZipFile(all_files_zip, "w", zipfile.ZIP_DEFLATED) as zf:
-                    for i, uploaded_file in enumerate(uploaded_files):
-                        try:
-                            image = Image.open(uploaded_file)
-                            faces = detect_faces(image)
-                            highlighted_image = highlight_faces(image, faces)
-                            results = process_image(highlighted_image, output_sizes)
+                for i, uploaded_file in enumerate(uploaded_files):
+                    try:
+                        image = Image.open(uploaded_file)
+                        faces = detect_faces(image)
+                        highlighted_image = highlight_faces(image, faces)
+                        results = process_image(highlighted_image, output_sizes)
 
-                            st.write(f"Przetworzono: {uploaded_file.name}")
-                            for size, img_bytes in results.items():
-                                st.download_button(
-                                    label=f"Pobierz {size}",
-                                    data=img_bytes,
-                                    file_name=f"{os.path.splitext(uploaded_file.name)[0]}_{size}.webp",
-                                    mime="image/webp",
-                                )
-                                if size == "Banner":
-                                    zf.writestr(
-                                        f"{os.path.splitext(uploaded_file.name)[0]}_{size}.webp",
-                                        img_bytes,
-                                    )
-                            st.write("---")
-                            processed_count += 1
-                        except Exception as e:
-                            st.error(
-                                f"Błąd podczas przetwarzania {uploaded_file.name}: {str(e)}"
+                        st.write(f"Przetworzono: {uploaded_file.name}")
+                        for size, img_bytes in results.items():
+                            st.download_button(
+                                label=f"Pobierz {size}",
+                                data=img_bytes,
+                                file_name=f"{os.path.splitext(uploaded_file.name)[0]}_{size}.webp",
+                                mime="image/webp",
                             )
-
-                        progress_bar.progress((i + 1) / len(uploaded_files))
-
-                    end_time = time.time()
-                    processing_time = end_time - start_time
-                    st.success(
-                        f"Przetworzono {processed_count} z {len(uploaded_files)} plików w {processing_time:.2f} sekund."
-                    )
-                    st.session_state.midjourney_processing = False
-
-                    if processed_count > 0:
-                        all_files_zip.seek(0)
-                        st.download_button(
-                            label="Pobierz wszystkie zdjęcia (1200x500)",
-                            data=all_files_zip.getvalue(),
-                            file_name="processed_images.zip",
-                            mime="application/zip",
+                        st.write("---")
+                        processed_count += 1
+                    except Exception as e:
+                        st.error(
+                            f"Błąd podczas przetwarzania {uploaded_file.name}: {str(e)}"
                         )
+
+                    progress_bar.progress((i + 1) / len(uploaded_files))
+
+                end_time = time.time()
+                processing_time = end_time - start_time
+                st.success(
+                    f"Przetworzono {processed_count} z {len(uploaded_files)} plików w {processing_time:.2f} sekund."
+                )
+                st.session_state.midjourney_processing = False
 
 
 if __name__ == "__main__":
