@@ -33,7 +33,7 @@ def main():
     st.write("Witamy w narzędziu do konwersji obrazów. Możesz przetwarzać zdjęcia masowo lub pojedynczo. Wybierz odpowiednią opcję z menu po lewej stronie.")
 
     menu = [
-        "Nowa zakładka",
+        "Automatycznie dopasowany drugi wymiar",
         "Masowe przetwarzanie",
         "Pojedyncze zdjęcie",
         "Zdjęcia z Midjourney",
@@ -58,14 +58,14 @@ def main():
             mime="application/zip",
         )
 
-    if choice == "Nowa zakładka":
-        st.header("Nowa zakładka - Przetwarzanie zdjęć")
+    if choice == "Automatycznie dopasowany drugi wymiar":
+        st.header("Automatycznie dopasowany drugi wymiar - Przetwarzanie zdjęć")
         st.write("Wybierz pliki i określ szerokość dla przetwarzanych zdjęć. Wysokość zostanie dostosowana automatycznie.")
 
         custom_width = st.number_input(
             "Szerokość (px)", min_value=100, max_value=1920, value=1920
         )
-
+        
         custom_max_size = st.number_input(
             "Maksymalny rozmiar pliku (KB)", min_value=50, max_value=1000, value=100
         )
@@ -74,15 +74,15 @@ def main():
             "Format pliku", options=["WEBP", "JPEG", "PNG"], index=0
         )
 
-        custom_output_sizes = {
-            "Nowy rozmiar": (custom_width, 0, custom_max_size)  # Wysokość zostanie obliczona automatycznie
-        }
-
         uploaded_files = st.file_uploader(
             "Wybierz pliki", type=["jpg", "png"], accept_multiple_files=True
         )
 
         if uploaded_files:
+            # Wyświetlanie aktualnej wysokości obrazu
+            
+            st.number_input("Aktualna wysokość dla podanej szerokości wynosi: ", int(custom_width / (Image.open(uploaded_files[0]).width / Image.open(uploaded_files[0]).height)))
+
             if st.button("Przetwórz zdjęcia"):
                 st.session_state.new_tab_processing = True
                 st.session_state.processed_images = []
@@ -95,6 +95,11 @@ def main():
                 for i, uploaded_file in enumerate(uploaded_files):
                     try:
                         image = Image.open(uploaded_file)
+                        aspect_ratio = image.width / image.height
+                        new_height = int(custom_width / aspect_ratio)
+                        custom_output_sizes = {
+                            "Nowy rozmiar": (custom_width, new_height, custom_max_size)
+                        }
                         results = process_image(image, custom_output_sizes, file_format)
                         st.write(f"Przetworzono: {uploaded_file.name}")
                         
@@ -305,6 +310,11 @@ def main():
                 for i, uploaded_file in enumerate(uploaded_files):
                     try:
                         image = Image.open(uploaded_file)
+                        aspect_ratio = image.width / image.height
+                        new_height = int(custom_width / aspect_ratio)
+                        custom_output_sizes = {
+                            "Niestandardowy": (custom_width, new_height, custom_max_size)
+                        }
                         results = process_image(image, custom_output_sizes, file_format)
                         st.write(f"Przetworzono: {uploaded_file.name}")
                         
@@ -314,10 +324,10 @@ def main():
                             st.image(preview_image, caption="Podgląd", use_column_width=True)
                         
                         with cols[1]:
-                            processed_image = Image.open(io.BytesIO(results["Nowy rozmiar"]))
+                            processed_image = Image.open(io.BytesIO(results["Niestandardowy"]))
                             st.download_button(
                                 label=f"Pobierz {custom_width}x{processed_image.height}.{file_format.lower()}",
-                                data=results["Nowy rozmiar"],
+                                data=results["Niestandardowy"],
                                 file_name=f"{os.path.splitext(uploaded_file.name)[0]}_{custom_width}x{processed_image.height}.{file_format.lower()}",
                                 mime=f"image/{file_format.lower()}",
                             )
